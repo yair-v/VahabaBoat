@@ -51,6 +51,7 @@ app.post('/api/update', auth, (req, res) => {
   const level = Number(waterLevel);
   const normalizedLevel = Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level))) : null;
   const now = Date.now();
+
   const item = {
     deviceId,
     name: name || deviceId,
@@ -69,7 +70,14 @@ app.post('/api/update', auth, (req, res) => {
 
   if (!history.has(deviceId)) history.set(deviceId, []);
   const arr = history.get(deviceId);
-  arr.push({ t: now, level: normalizedLevel, temperatureC: item.temperatureC, humidity: item.humidity, status: item.status });
+  arr.push({
+    t: now,
+    level: normalizedLevel,
+    temperatureC: item.temperatureC,
+    humidity: item.humidity,
+    status: item.status
+  });
+
   while (arr.length > MAX_HISTORY) arr.shift();
 
   res.json({ ok: true, received: item });
@@ -77,6 +85,7 @@ app.post('/api/update', auth, (req, res) => {
 
 app.get('/api/devices', (req, res) => {
   const now = Date.now();
+
   const result = Array.from(devices.values()).map((d) => {
     const online = now - d.lastSeen <= OFFLINE_AFTER_MS;
     return {
@@ -127,7 +136,7 @@ app.get('/', (req, res) => {
     .wrap { padding: 16px; max-width: 1100px; margin: auto; }
     .summary {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 10px;
       margin-bottom: 16px;
     }
@@ -177,7 +186,7 @@ app.get('/', (req, res) => {
       display:grid;
       grid-template-columns:1fr 1fr;
       gap:10px;
-      margin-top:12px;
+      margin-top:14px;
     }
     .sensorBox {
       background:#0d1117;
@@ -208,30 +217,36 @@ app.get('/', (req, res) => {
     <h1>מערכת ניטור הצפה בענן</h1>
     <div class="subtitle">מפלס מים + DHT11 · 0% תקין ירוק · 100% מסוכן אדום · מתעדכן אוטומטית</div>
   </header>
+
   <main class="wrap">
     <div class="summary">
       <div class="summaryBox"><b id="onlineCount">0</b><span>מחוברים</span></div>
       <div class="summaryBox"><b id="dangerCount">0</b><span>התראות</span></div>
       <div class="summaryBox"><b id="totalCount">0</b><span>סה״כ התקנים</span></div>
     </div>
+
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;">
       <div class="small" id="lastUpdate">ממתין לנתונים...</div>
       <button onclick="loadData()">רענון</button>
     </div>
+
     <div class="grid" id="devices"></div>
   </main>
+
 <script>
 async function loadData() {
   try {
     const res = await fetch('/api/devices', { cache: 'no-store' });
     const data = await res.json();
     const devices = data.devices || [];
+
     document.getElementById('totalCount').textContent = devices.length;
     document.getElementById('onlineCount').textContent = devices.filter(d => d.online).length;
     document.getElementById('dangerCount').textContent = devices.filter(d => d.online && d.waterLevel > 60).length;
     document.getElementById('lastUpdate').textContent = 'עודכן: ' + new Date().toLocaleString('he-IL');
 
     const root = document.getElementById('devices');
+
     if (!devices.length) {
       root.innerHTML = '<div class="empty">אין עדיין נתונים. הפעל את סקריפט ה־Raspberry Pi.</div>';
       return;
@@ -247,13 +262,27 @@ async function loadData() {
           <div class="deviceName">\${escapeHtml(d.name || d.deviceId)}</div>
           <div class="badge">\${onlineText}</div>
         </div>
+
         <div class="circle" style="--c:\${d.color};--p:\${level}%">
           <div class="inner">
             <div class="percent">\${level}%</div>
             <div class="small">WATER</div>
           </div>
         </div>
+
         <div class="status" style="color:\${d.color}">\${d.online ? d.status : 'OFFLINE'}</div>
+
+        <div class="sensorRow">
+          <div class="sensorBox">
+            <b>\${d.temperatureC == null ? '--' : d.temperatureC + '°C'}</b>
+            <span>טמפרטורה</span>
+          </div>
+          <div class="sensorBox">
+            <b>\${d.humidity == null ? '--' : d.humidity + '%'}</b>
+            <span>לחות</span>
+          </div>
+        </div>
+
         <div class="meta">
           \${d.dhtError ? 'DHT11: ' + escapeHtml(d.dhtError) + '<br />' : ''}
           מזהה: \${escapeHtml(d.deviceId)}<br />
@@ -279,5 +308,5 @@ setInterval(loadData, 3000);
 });
 
 app.listen(PORT, () => {
-  console.log(`Water monitor server running on port ${PORT}`);
+  console.log(\`Water monitor server running on port \${PORT}\`);
 });
