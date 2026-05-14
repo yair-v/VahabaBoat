@@ -308,5 +308,5 @@ setInterval(loadData, 3000);
 });
 
 app.listen(PORT, () => {
-  console.log(\`Water monitor server running on port \${PORT}\`);
-});
+  console.log(`Water monitor server running on port ${PORT}`);
+});     
