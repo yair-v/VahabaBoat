@@ -43,7 +43,7 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/update', auth, (req, res) => {
-  const { deviceId, name, waterLevel, rawLow, rawHigh } = req.body || {};
+  const { deviceId, name, waterLevel, temperatureC, humidity, dhtError, rawLow, rawHigh } = req.body || {};
   if (!deviceId) {
     return res.status(400).json({ ok: false, error: 'Missing deviceId' });
   }
@@ -56,6 +56,9 @@ app.post('/api/update', auth, (req, res) => {
     name: name || deviceId,
     waterLevel: normalizedLevel,
     status: getStatus(normalizedLevel),
+    temperatureC: Number.isFinite(Number(temperatureC)) ? Number(temperatureC) : null,
+    humidity: Number.isFinite(Number(humidity)) ? Number(humidity) : null,
+    dhtError: dhtError || null,
     rawLow: Array.isArray(rawLow) ? rawLow : [],
     rawHigh: Array.isArray(rawHigh) ? rawHigh : [],
     lastSeen: now,
@@ -66,7 +69,7 @@ app.post('/api/update', auth, (req, res) => {
 
   if (!history.has(deviceId)) history.set(deviceId, []);
   const arr = history.get(deviceId);
-  arr.push({ t: now, level: normalizedLevel, status: item.status });
+  arr.push({ t: now, level: normalizedLevel, temperatureC: item.temperatureC, humidity: item.humidity, status: item.status });
   while (arr.length > MAX_HISTORY) arr.shift();
 
   res.json({ ok: true, received: item });
@@ -124,7 +127,7 @@ app.get('/', (req, res) => {
     .wrap { padding: 16px; max-width: 1100px; margin: auto; }
     .summary {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 10px;
       margin-bottom: 16px;
     }
@@ -170,6 +173,20 @@ app.get('/', (req, res) => {
     .percent { font-size:42px; font-weight:bold; }
     .small { color:#8b949e; font-size:13px; }
     .status { font-size:22px; font-weight:bold; margin-top:8px; }
+    .sensorRow {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:12px;
+    }
+    .sensorBox {
+      background:#0d1117;
+      border:1px solid #30363d;
+      border-radius:14px;
+      padding:10px;
+    }
+    .sensorBox b { display:block; font-size:22px; }
+    .sensorBox span { color:#8b949e; font-size:12px; }
     .meta { margin-top: 12px; color:#8b949e; font-size:13px; line-height:1.6; }
     .empty { text-align:center; color:#8b949e; padding:40px 10px; }
     button {
@@ -189,13 +206,15 @@ app.get('/', (req, res) => {
 <body>
   <header>
     <h1>מערכת ניטור הצפה בענן</h1>
-    <div class="subtitle">0% תקין ירוק · 100% מסוכן אדום · מתעדכן אוטומטית</div>
+    <div class="subtitle">מפלס מים + DHT11 · 0% תקין ירוק · 100% מסוכן אדום · מתעדכן אוטומטית</div>
   </header>
   <main class="wrap">
     <div class="summary">
       <div class="summaryBox"><b id="onlineCount">0</b><span>מחוברים</span></div>
       <div class="summaryBox"><b id="dangerCount">0</b><span>התראות</span></div>
       <div class="summaryBox"><b id="totalCount">0</b><span>סה״כ התקנים</span></div>
+      <div class="summaryBox"><b id="avgTemp">--</b><span>טמפ׳ ממוצעת</span></div>
+      <div class="summaryBox"><b id="avgHum">--</b><span>לחות ממוצעת</span></div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;">
       <div class="small" id="lastUpdate">ממתין לנתונים...</div>
@@ -212,6 +231,10 @@ async function loadData() {
     document.getElementById('totalCount').textContent = devices.length;
     document.getElementById('onlineCount').textContent = devices.filter(d => d.online).length;
     document.getElementById('dangerCount').textContent = devices.filter(d => d.online && d.waterLevel > 60).length;
+    const onlineWithTemp = devices.filter(d => d.online && d.temperatureC !== null && d.temperatureC !== undefined);
+    const onlineWithHum = devices.filter(d => d.online && d.humidity !== null && d.humidity !== undefined);
+    document.getElementById('avgTemp').textContent = onlineWithTemp.length ? Math.round(onlineWithTemp.reduce((a,d) => a + Number(d.temperatureC), 0) / onlineWithTemp.length) + '°' : '--';
+    document.getElementById('avgHum').textContent = onlineWithHum.length ? Math.round(onlineWithHum.reduce((a,d) => a + Number(d.humidity), 0) / onlineWithHum.length) + '%' : '--';
     document.getElementById('lastUpdate').textContent = 'עודכן: ' + new Date().toLocaleString('he-IL');
     const root = document.getElementById('devices');
     if (!devices.length) {
@@ -234,7 +257,12 @@ async function loadData() {
           </div>
         </div>
         <div class="status" style="color:\${d.color}">\${d.online ? d.status : 'OFFLINE'}</div>
+        <div class="sensorRow">
+          <div class="sensorBox"><b>\${d.temperatureC == null ? '--' : d.temperatureC + '°C'}</b><span>טמפרטורה</span></div>
+          <div class="sensorBox"><b>\${d.humidity == null ? '--' : d.humidity + '%'}</b><span>לחות</span></div>
+        </div>
         <div class="meta">
+          \${d.dhtError ? 'DHT11: ' + escapeHtml(d.dhtError) + '<br />' : ''}
           מזהה: \${escapeHtml(d.deviceId)}<br />
           נראה לאחרונה: \${d.secondsAgo} שניות<br />
           \${escapeHtml(d.lastSeenText || '')}
