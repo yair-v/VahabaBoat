@@ -213,8 +213,8 @@ app.get('/', (req, res) => {
       <div class="summaryBox"><b id="onlineCount">0</b><span>מחוברים</span></div>
       <div class="summaryBox"><b id="dangerCount">0</b><span>התראות</span></div>
       <div class="summaryBox"><b id="totalCount">0</b><span>סה״כ התקנים</span></div>
-      <div class="summaryBox"><b id="avgTemp">--</b><span>טמפ׳ ממוצעת</span></div>
-      <div class="summaryBox"><b id="avgHum">--</b><span>לחות ממוצעת</span></div>
+     <!-- <div class="summaryBox"><b id="avgTemp">--</b><span>טמפ׳ ממוצעת</span></div>
+      <div class="summaryBox"><b id="avgHum">--</b><span>לחות ממוצעת</span></div>   -->
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;">
       <div class="small" id="lastUpdate">ממתין לנתונים...</div>
