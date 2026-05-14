@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: water-render-monitor
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: API_KEY
+        value: change-me-12345
+      - key: OFFLINE_AFTER_MS
+        value: 30000
