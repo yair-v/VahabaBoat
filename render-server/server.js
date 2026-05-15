@@ -254,8 +254,15 @@ app.get('/', (req, res) => {
       </div>
 
       <div class="legend">
-        <span class="legendItem"><span class="legendColor" style="background:#5eead4"></span>טמפרטורה °C · סרגל 0-60</span>
-        <span class="legendItem"><span class="legendColor" style="background:#d946ef"></span>לחות % · סרגל 0-100</span>
+     <span class="legendItem">
+  <span class="legendColor" style="background:#5eead4"></span>
+  טמפרטורה C = <span id="currentTemp">--</span>
+</span>
+
+<span class="legendItem">
+  <span class="legendColor" style="background:#d946ef"></span>
+  לחות % = <span id="currentHum">--</span>
+</span>
       </div>
 
       <canvas id="chart" width="900" height="400"></canvas>
@@ -495,6 +502,12 @@ async function loadData() {
     var graphDevice = devices.find(function(d) {
       return d.temperatureC !== null || d.humidity !== null;
     }) || devices[0];
+
+document.getElementById('currentTemp').textContent =
+  graphDevice && graphDevice.temperatureC !== null ? graphDevice.temperatureC : '--';
+
+document.getElementById('currentHum').textContent =
+  graphDevice && graphDevice.humidity !== null ? graphDevice.humidity : '--';
 
     drawChart(graphDevice ? graphDevice.deviceId : null);
   } catch (err) {
