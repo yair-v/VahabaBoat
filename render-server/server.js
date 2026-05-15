@@ -500,16 +500,38 @@ async function loadData() {
     renderCards(devices);
 
     var graphDevice = devices.find(function(d) {
-      return d.temperatureC !== null || d.humidity !== null;
-    }) || devices[0];
+  return d.online &&
+         (d.temperatureC !== null || d.humidity !== null);
+});
 
+if (!graphDevice) {
+  document.getElementById('currentTemp').textContent = '--';
+  document.getElementById('currentHum').textContent = '--';
+
+  document.getElementById('alarm').classList.add('show');
+  document.getElementById('alarm').textContent =
+    '⚠️ מערכת הניטור מנותקת';
+
+  drawChart(null);
+  return;
+}
 document.getElementById('currentTemp').textContent =
   graphDevice && graphDevice.temperatureC !== null ? graphDevice.temperatureC : '--';
 
 document.getElementById('currentHum').textContent =
   graphDevice && graphDevice.humidity !== null ? graphDevice.humidity : '--';
 
-    drawChart(graphDevice ? graphDevice.deviceId : null);
+  const tooOld = graphDevice.secondsAgo > 600;
+
+if (tooOld) {
+  document.getElementById('alarm').classList.add('show');
+  document.getElementById('alarm').textContent =
+    '⚠️ חיישן לא שידר מעל 10 דקות';
+
+  drawChart(null);
+} else {
+  drawChart(graphDevice.deviceId);
+}
   } catch (err) {
     document.getElementById('waterPages').innerHTML = '<div class="empty">שגיאה בטעינת נתונים</div>';
   }
