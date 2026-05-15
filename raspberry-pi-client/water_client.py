@@ -3,33 +3,79 @@ import requests
 import time
 import socket
 
-# DHT11 libraries
 import board
 import adafruit_dht
+
+import digitalio
+import busio
+from PIL import Image, ImageDraw, ImageFont
+from adafruit_rgb_display import ili9341
 
 # =============================
 # SETTINGS
 # =============================
+
 SERVER_URL = "https://vahababoat.onrender.com/api/update"
 API_KEY = "Yair$!(^hila**78)"
+
 DEVICE_ID = "pi-water-1"
-DEVICE_NAME = "Raspberry Pi Water Sensor 1"
+DEVICE_NAME = "Raspberry Pi Water + DHT11 Sensor 1"
+
 SEND_EVERY_SECONDS = 5
 
-# Grove Water Level Sensor addresses
 LOW_ADDR = 0x77
 HIGH_ADDR = 0x78
 THRESHOLD = 100
 
-# DHT11 pin
 DHT_PIN = board.D17
 
+# =============================
+# DISPLAY SETTINGS - ILI9341
+# =============================
+
+spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI)
+
+cs_pin = digitalio.DigitalInOut(board.CE0)
+dc_pin = digitalio.DigitalInOut(board.D24)
+reset_pin = digitalio.DigitalInOut(board.D25)
+
+display = ili9341.ILI9341(
+    spi,
+    cs=cs_pin,
+    dc=dc_pin,
+    rst=reset_pin,
+    baudrate=32000000,
+    rotation=0,
+)
+
+WIDTH = 240
+HEIGHT = 320
+
+image = Image.new("RGB", (WIDTH, HEIGHT))
+draw = ImageDraw.Draw(image)
+
+font = ImageFont.load_default()
+
+# =============================
+# COLORS
+# =============================
+
+BLACK = (0, 0, 0)
+BG = (8, 18, 35)
+CARD = (22, 34, 55)
+WHITE = (255, 255, 255)
+MUTED = (150, 165, 185)
+GREEN = (0, 255, 120)
+RED = (255, 60, 60)
+ORANGE = (255, 170, 0)
+CYAN = (0, 255, 255)
+PURPLE = (220, 80, 255)
+
+# =============================
+# SENSORS
+# =============================
+
 bus = SMBus(1)
-
-# DHT object created dynamically
-# so disconnects will not kill monitoring
-# system
-
 dht = None
 
 
@@ -128,24 +174,119 @@ def send_update(level, low_data, high_data, temperature, humidity, dht_error):
     )
 
     response.raise_for_status()
-
     return response.json()
 
 
+# =============================
+# DISPLAY
+# =============================
+
+def water_color(level):
+    if level is None:
+        return RED
+
+    if level <= 20:
+        return GREEN
+
+    if level <= 60:
+        return ORANGE
+
+    return RED
+
+
+def draw_bar(x, y, w, h, percent, color):
+    draw.rectangle((x, y, x + w, y + h), outline=(70, 85, 110), width=2)
+
+    if percent is None:
+        percent = 0
+
+    fill_w = int(w * percent / 100)
+
+    if fill_w > 4:
+        draw.rectangle(
+            (x + 2, y + 2, x + fill_w - 2, y + h - 2),
+            fill=color,
+        )
+
+
+def draw_dashboard(level, temperature, humidity, dht_error, cloud_ok, internet_status):
+    draw.rectangle((0, 0, WIDTH, HEIGHT), fill=BG)
+
+    # Header
+    draw.rectangle((0, 0, WIDTH, 42), fill=(10, 30, 60))
+    draw.text((10, 10), "Vahaba Boat", font=font, fill=WHITE)
+
+    if cloud_ok:
+        draw.text((175, 10), "ONLINE", font=font, fill=GREEN)
+    else:
+        draw.text((175, 10), "LOCAL", font=font, fill=ORANGE)
+
+    # Water card
+    draw.rounded_rectangle((10, 55, 230, 150), radius=12,
+                           fill=CARD, outline=(55, 70, 95))
+
+    draw.text((20, 66), "Water Level", font=font, fill=CYAN)
+
+    if level is None:
+        level_text = "--%"
+        status = "WATER SENSOR ERROR"
+        color = RED
+    else:
+        level_text = f"{level}%"
+        color = water_color(level)
+
+        if level <= 20:
+            status = "GOOD"
+        elif level <= 60:
+            status = "WARNING"
+        else:
+            status = "DANGER"
+
+    draw.text((20, 92), level_text, font=font, fill=WHITE)
+    draw_bar(20, 115, 200, 22, level, color)
+    draw.text((20, 140), status, font=font, fill=color)
+
+    # Temp/Humidity card
+    draw.rounded_rectangle((10, 165, 230, 245), radius=12,
+                           fill=CARD, outline=(55, 70, 95))
+
+    draw.text((20, 176), "Temperature / Humidity", font=font, fill=PURPLE)
+
+    if dht_error:
+        draw.text((20, 203), "DHT ERROR", font=font, fill=RED)
+        draw.text((20, 224), "Temp: --   Hum: --", font=font, fill=MUTED)
+    else:
+        draw.text((20, 203), f"Temp: {temperature} C", font=font, fill=CYAN)
+        draw.text((20, 224), f"Hum : {humidity} %", font=font, fill=PURPLE)
+
+    # Status card
+    draw.rounded_rectangle((10, 260, 230, 310), radius=12,
+                           fill=CARD, outline=(55, 70, 95))
+
+    if not internet_status:
+        draw.text((20, 276), "Internet: OFFLINE", font=font, fill=RED)
+    else:
+        draw.text((20, 276), "Internet: OK", font=font, fill=GREEN)
+
+    draw.text((20, 294), time.strftime("%H:%M:%S"), font=font, fill=MUTED)
+
+    display.image(image)
+
+
+# =============================
+# MAIN
+# =============================
+
 print("====================================")
-print(" Raspberry Pi Water + DHT11 Client")
+print(" Raspberry Pi Water + DHT11 + ILI9341")
 print("====================================")
-print("Water: 0% = GOOD / GREEN")
-print("Water: 100% = DANGER / RED")
-print("DHT11 DATA pin: GPIO17 / physical pin 11")
 print("Device:", DEVICE_ID)
 print("Server:", SERVER_URL)
+print("Display: ILI9341 240x320")
 print("====================================")
-
 
 while True:
     level, low_data, high_data = get_water_level()
-
     temperature, humidity, dht_error = get_dht11()
 
     if level is None:
@@ -158,24 +299,35 @@ while True:
     else:
         print(f"DHT11: {temperature}C | {humidity}%")
 
-    if not internet_ok():
+    internet_status = internet_ok()
+    cloud_ok = False
+
+    if not internet_status:
         print("No internet connection")
-        time.sleep(SEND_EVERY_SECONDS)
-        continue
+    else:
+        try:
+            result = send_update(
+                level,
+                low_data,
+                high_data,
+                temperature,
+                humidity,
+                dht_error,
+            )
 
-    try:
-        result = send_update(
-            level,
-            low_data,
-            high_data,
-            temperature,
-            humidity,
-            dht_error,
-        )
+            cloud_ok = bool(result.get("ok"))
+            print("Sent to cloud:", cloud_ok)
 
-        print("Sent to cloud:", result.get("ok"))
+        except Exception as e:
+            print("Cloud send error:", e)
 
-    except Exception as e:
-        print("Cloud send error:", e)
+    draw_dashboard(
+        level,
+        temperature,
+        humidity,
+        dht_error,
+        cloud_ok,
+        internet_status,
+    )
 
     time.sleep(SEND_EVERY_SECONDS)

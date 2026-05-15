@@ -168,46 +168,46 @@ app.get('/', (req, res) => {
     .waterScroller{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 0 10px}
     .waterScroller::-webkit-scrollbar{height:6px}.waterScroller::-webkit-scrollbar-thumb{background:rgba(148,163,184,.35);border-radius:999px}
     .waterPages{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px}
-    .waterPage{scroll-snap-align:start;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:420px}
+    .waterPage{scroll-snap-align:start;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:236px}
     .card{
-      min-height:202px;border-radius:28px;padding:14px 10px 13px;position:relative;overflow:hidden;
+      min-height:110px;border-radius:22px;padding:9px 8px 8px;position:relative;overflow:hidden;
       background:radial-gradient(circle at 50% 6%,rgba(34,211,238,.12),transparent 42%),linear-gradient(180deg,rgba(40,54,82,.96),rgba(13,23,39,.98));
       border:1px solid var(--line);
       box-shadow:0 18px 38px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.03);
       display:flex;flex-direction:column;align-items:center;justify-content:space-between;
     }
     .card.offline{opacity:.48;filter:grayscale(.35)}
-    .dot{position:absolute;top:14px;right:14px;width:12px;height:12px;border-radius:50%;background:var(--good);box-shadow:0 0 14px currentColor}
+    .dot{position:absolute;top:10px;right:10px;width:10px;height:10px;border-radius:50%;background:var(--good);box-shadow:0 0 12px currentColor}
     .dot.offline{background:#64748b;box-shadow:none}
     .rename{
-      position:absolute;top:9px;left:9px;border:0;border-radius:12px;padding:6px 8px;
+      position:absolute;top:7px;left:7px;border:0;border-radius:10px;padding:4px 6px;
       background:rgba(15,23,42,.58);color:#cbd5e1;font-size:12px;font-weight:800
     }
     .name{
-      text-align:center;min-height:38px;padding:0 28px;display:flex;align-items:center;justify-content:center;
-      font-weight:900;color:#dbeafe;font-size:15px;line-height:1.25;z-index:2;
+      text-align:center;min-height:24px;padding:0 24px;display:flex;align-items:center;justify-content:center;
+      font-weight:900;color:#dbeafe;font-size:13px;line-height:1.15;z-index:2;
       text-shadow:0 2px 8px rgba(0,0,0,.35)
     }
-    .gauge{width:156px;height:84px;overflow:hidden;position:relative;margin-top:4px}
+    .gauge{width:110px;height:58px;overflow:hidden;position:relative;margin-top:2px}
     .arc{
-      width:156px;height:156px;border-radius:50%;position:absolute;left:0;top:0;
+      width:110px;height:110px;border-radius:50%;position:absolute;left:0;top:0;
       background:conic-gradient(from 270deg,var(--c) calc(var(--v) * .5%),rgba(51,65,85,.98) 0 50%,transparent 0);
       filter:drop-shadow(0 0 16px var(--c));
     }
     .arc:after{
-      content:"";position:absolute;inset:17px;border-radius:50%;background:#101b2e;
+      content:"";position:absolute;inset:12px;border-radius:50%;background:#101b2e;
       border:1px solid rgba(255,255,255,.06);box-shadow:inset 0 0 20px rgba(0,0,0,.28)
     }
     .needle{
-      position:absolute;left:50%;bottom:0;width:3px;height:63px;border-radius:999px;background:#e2e8f0;
+      position:absolute;left:50%;bottom:0;width:3px;height:44px;border-radius:999px;background:#e2e8f0;
       transform-origin:50% 100%;transform:rotate(calc(-90deg + var(--v) * 1.8deg));opacity:.86;
       box-shadow:0 0 10px rgba(255,255,255,.45)
     }
     .needle:after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#e2e8f0}
-    .value{margin-top:-7px;font-size:45px;line-height:1;font-weight:900;direction:ltr;letter-spacing:-1px;z-index:2}
-    .value span{font-size:21px;opacity:.9;margin-left:2px}
-    .state{margin-top:3px;font-size:15px;font-weight:900;color:var(--good);z-index:2}
-    .state.bad{color:#f87171}.seen{margin-top:2px;color:#cbd5e1;font-size:12px;z-index:2}
+    .value{margin-top:-2px;font-size:28px;line-height:1;font-weight:900;direction:ltr;letter-spacing:-1px;z-index:2}
+    .value span{font-size:15px;opacity:.9;margin-left:2px}
+    .state{margin-top:2px;font-size:12px;font-weight:900;color:var(--good);z-index:2}
+    .state.bad{color:#f87171}.seen{margin-top:1px;color:#cbd5e1;font-size:10px;z-index:2}
     .hint{color:var(--muted);text-align:center;margin:-2px 0 12px;font-size:12px}
     .chartCard{
       margin-top:8px;border-radius:28px;padding:15px 12px 16px;
@@ -224,8 +224,8 @@ app.get('/', (req, res) => {
       border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:800;text-align:center;padding:24px
     }
     @media (max-width:430px){
-      .wrap{padding-left:10px;padding-right:10px}.waterPage{gap:10px;min-height:410px}.card{min-height:194px;border-radius:24px;padding:12px 8px}
-      .gauge{width:140px;height:76px}.arc{width:140px;height:140px}.value{font-size:40px}canvas{height:280px}.name{font-size:14px}
+      .wrap{padding-left:10px;padding-right:10px}.waterPage{gap:10px;min-height:230px}.card{min-height:108px;border-radius:22px;padding:8px 7px}
+      .gauge{width:104px;height:55px}.arc{width:104px;height:104px}.value{font-size:27px}canvas{height:280px}.name{font-size:12px}
     }
   </style>
 </head>
