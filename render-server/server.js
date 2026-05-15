@@ -489,13 +489,43 @@ async function loadData() {
     var data = await res.json();
     var devices = data.devices || [];
 
-    var hasWaterAlarm = devices.some(function(d) {
-      return d.online && Number(d.waterLevel || 0) > 20;
-    });
+  var alarm = document.getElementById('alarm');
 
-    var alarm = document.getElementById('alarm');
-    alarm.classList.toggle('show', hasWaterAlarm);
-    alarm.textContent = hasWaterAlarm ? '⚠️ התראת מפלס מים פעילה' : '';
+alarm.classList.remove('show');
+alarm.textContent = '';
+
+if (!devices.length) {
+  alarm.classList.add('show');
+  alarm.textContent = '⚠️ אין נתונים מהמערכת';
+}
+
+else if (devices.every(function(d) {
+  return !d.online;
+})) {
+  alarm.classList.add('show');
+  alarm.textContent = '⚠️ Raspberry Pi מנותק / לא משדר';
+}
+
+else if (devices.some(function(d) {
+  return d.online && d.dhtError;
+})) {
+  alarm.classList.add('show');
+  alarm.textContent = '⚠️ חיישן טמפרטורה / לחות מנותק';
+}
+
+else if (devices.some(function(d) {
+  return d.online && d.waterLevel === null;
+})) {
+  alarm.classList.add('show');
+  alarm.textContent = '⚠️ חיישן הצפה מנותק';
+}
+
+else if (devices.some(function(d) {
+  return d.online && Number(d.waterLevel || 0) > 20;
+})) {
+  alarm.classList.add('show');
+  alarm.textContent = '⚠️ התראת מפלס מים פעילה';
+}
 
     renderCards(devices);
 
