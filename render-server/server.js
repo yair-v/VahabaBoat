@@ -11,7 +11,7 @@ app.use(express.json({ limit: '1mb' }));
 
 const devices = new Map();
 const history = new Map();
-const MAX_HISTORY = 300;
+const MAX_HISTORY = 500;
 
 function getStatus(level) {
   if (level === null || level === undefined || Number.isNaN(Number(level))) return 'SENSOR ERROR';
@@ -32,7 +32,9 @@ function getColor(level, online) {
 
 function auth(req, res, next) {
   const key = req.header('x-api-key');
-  if (key !== API_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  if (key !== API_KEY) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
   next();
 }
 
@@ -41,12 +43,26 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/update', auth, (req, res) => {
-  const { deviceId, name, waterLevel, temperatureC, humidity, dhtError, rawLow, rawHigh } = req.body || {};
+  const {
+    deviceId,
+    name,
+    waterLevel,
+    temperatureC,
+    humidity,
+    dhtError,
+    rawLow,
+    rawHigh
+  } = req.body || {};
 
-  if (!deviceId) return res.status(400).json({ ok: false, error: 'Missing deviceId' });
+  if (!deviceId) {
+    return res.status(400).json({ ok: false, error: 'Missing deviceId' });
+  }
 
   const level = Number(waterLevel);
-  const normalizedLevel = Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level))) : null;
+  const normalizedLevel = Number.isFinite(level)
+    ? Math.max(0, Math.min(100, Math.round(level)))
+    : null;
+
   const tempValue = Number.isFinite(Number(temperatureC)) ? Number(temperatureC) : null;
   const humValue = Number.isFinite(Number(humidity)) ? Number(humidity) : null;
   const now = Date.now();
@@ -69,7 +85,15 @@ app.post('/api/update', auth, (req, res) => {
 
   if (!history.has(deviceId)) history.set(deviceId, []);
   const arr = history.get(deviceId);
-  arr.push({ t: now, level: normalizedLevel, temperatureC: tempValue, humidity: humValue, status: item.status });
+
+  arr.push({
+    t: now,
+    level: normalizedLevel,
+    temperatureC: tempValue,
+    humidity: humValue,
+    status: item.status
+  });
+
   while (arr.length > MAX_HISTORY) arr.shift();
 
   res.json({ ok: true, received: item });
@@ -99,7 +123,8 @@ app.get('/api/history/:deviceId', (req, res) => {
   res.json({ ok: true, deviceId: req.params.deviceId, history: arr });
 });
 
-const html = `<!DOCTYPE html>
+app.get('/', (req, res) => {
+  res.send(`<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
@@ -108,120 +133,350 @@ const html = `<!DOCTYPE html>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root {
-      --bg:#0f172a; --panel:#1e2a3f; --line:rgba(148,163,184,.22);
-      --text:#f8fafc; --muted:#94a3b8; --green:#22c55e; --red:#ef4444;
-      --orange:#f59e0b; --cyan:#22d3ee; --purple:#d946ef;
+      --bg0: #07111f;
+      --bg1: #101b2e;
+      --card: rgba(22, 34, 55, 0.92);
+      --card2: rgba(15, 23, 42, 0.98);
+      --line: rgba(148, 163, 184, 0.20);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --cyan: #22d3ee;
+      --purple: #d946ef;
     }
-    html,body{
-      margin:0; padding:0; color:var(--text); font-family:Arial,Helvetica,sans-serif;
-      min-height:100vh; overflow-x:hidden;
-      background:radial-gradient(circle at top,rgba(56,189,248,.16),transparent 32%),linear-gradient(180deg,#111c31,#0f172a);
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 50% -10%, rgba(34, 211, 238, 0.20), transparent 32%),
+        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.16), transparent 34%),
+        linear-gradient(180deg, var(--bg1), var(--bg0));
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      overflow-x: hidden;
     }
-    body{padding-bottom:20px}
-    .appHeader{
-      position:sticky; top:0; z-index:10;
-      padding:max(12px,env(safe-area-inset-top)) 14px 12px;
-      background:rgba(17,28,49,.94); backdrop-filter:blur(14px);
-      border-bottom:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.24);
+
+    body { padding-bottom: 20px; }
+
+    .header {
+      padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+      background: rgba(7, 17, 31, 0.78);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
-    .headerTitle{text-align:center;font-size:23px;font-weight:900;letter-spacing:.2px;line-height:1.2}
-    .headerSub{margin-top:4px;text-align:center;color:var(--muted);font-size:13px;direction:ltr}
-    .wrap{padding:14px 12px 18px;max-width:1200px;margin:0 auto}
-    .alertBar{
-      display:none;margin:0 0 12px;padding:11px 14px;border-radius:16px;
-      background:linear-gradient(135deg,#991b1b,#ef4444);color:#fff;
-      border:1px solid rgba(255,255,255,.18);font-size:15px;font-weight:800;
-      box-shadow:0 12px 28px rgba(239,68,68,.22)
+
+    .title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      line-height: 1.1;
     }
-    .alertBar.show{display:block}
-    .waterScroller{
-      overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 0 10px
+
+    .subtitle {
+      text-align: center;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      direction: ltr;
     }
-    .waterScroller::-webkit-scrollbar{height:5px}
-    .waterScroller::-webkit-scrollbar-thumb{background:rgba(148,163,184,.4);border-radius:999px}
-    .waterPages{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:14px}
-    .waterPage{scroll-snap-align:start;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:416px}
-    .gaugeCard{
-      position:relative;overflow:hidden;min-height:198px;padding:14px 10px 12px;border-radius:24px;
-      background:linear-gradient(180deg,rgba(45,59,87,.95),rgba(21,32,51,.98));
-      border:1px solid var(--line);
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.03),0 14px 32px rgba(0,0,0,.24);
-      display:flex;flex-direction:column;align-items:center;justify-content:space-between
+
+    .wrap {
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 14px 12px 22px;
     }
-    .gaugeCard:before{
-      content:"";position:absolute;inset:-70px -70px auto auto;width:150px;height:150px;border-radius:50%;
-      background:radial-gradient(circle,rgba(34,211,238,.18),transparent 70%)
+
+    .alarm {
+      display: none;
+      margin: 2px 0 12px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(127, 29, 29, 0.98), rgba(239, 68, 68, 0.92));
+      color: white;
+      font-weight: 900;
+      box-shadow: 0 16px 34px rgba(239, 68, 68, 0.22);
+      border: 1px solid rgba(255,255,255,0.16);
     }
-    .gaugeCard.offline{opacity:.55;filter:grayscale(.3)}
-    .statusDot{position:absolute;top:13px;right:13px;width:13px;height:13px;border-radius:999px;background:var(--green);box-shadow:0 0 14px currentColor}
-    .statusDot.offline{background:#64748b;box-shadow:none}
-    .gaugeName{
-      width:100%;min-height:38px;display:flex;align-items:center;justify-content:center;
-      padding:0 18px;text-align:center;color:#dbeafe;font-size:15px;line-height:1.25;font-weight:800;z-index:1
+    .alarm.show { display: block; }
+
+    .waterScroller {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 0 10px;
     }
-    .semiGauge{width:148px;height:78px;position:relative;overflow:hidden;margin-top:6px}
-    .semiGaugeArc{
-      width:148px;height:148px;border-radius:50%;
-      background:conic-gradient(from 270deg,var(--gaugeColor) calc(var(--level) * .5%),rgba(51,65,85,.95) 0 50%,transparent 0);
-      filter:drop-shadow(0 0 13px var(--gaugeColor));position:absolute;top:0;left:0
+
+    .waterScroller::-webkit-scrollbar { height: 6px; }
+    .waterScroller::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.35); border-radius: 999px; }
+
+    .waterPages {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 100%;
+      gap: 16px;
     }
-    .semiGaugeArc:after{
-      content:"";position:absolute;inset:15px;border-radius:50%;background:#151d2c;border:1px solid rgba(255,255,255,.06)
+
+    .waterPage {
+      scroll-snap-align: start;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      min-height: 430px;
     }
-    .gaugeValue{margin-top:-5px;font-size:43px;font-weight:900;color:var(--text);line-height:1;direction:ltr;z-index:1}
-    .gaugeValue .unit{font-size:21px;font-weight:700;margin-left:2px;opacity:.9}
-    .miniData{display:flex;gap:8px;align-items:center;justify-content:center;direction:ltr;font-size:15px;font-weight:800;min-height:24px;margin-top:3px;z-index:1}
-    .temp{color:#5eead4}.hum{color:#f0abfc}
-    .statusText{color:var(--green);font-size:15px;font-weight:900;margin-top:4px;z-index:1}
-    .statusText.bad{color:#f87171}
-    .offlineText{color:#cbd5e1;font-size:12px;margin-top:2px;z-index:1}
-    .pageHint{text-align:center;color:var(--muted);font-size:12px;margin:-2px 0 12px}
-    .chartPanel{
-      background:linear-gradient(180deg,rgba(45,59,87,.95),rgba(30,42,63,.98));
-      border:1px solid var(--line);border-radius:24px;padding:14px 12px 15px;
-      box-shadow:0 14px 32px rgba(0,0,0,.24);margin-top:6px
+
+    .card {
+      min-height: 205px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 50% 8%, rgba(34, 211, 238, 0.10), transparent 42%),
+        linear-gradient(180deg, rgba(40, 54, 82, 0.96), rgba(13, 23, 39, 0.98));
+      border: 1px solid var(--line);
+      box-shadow:
+        0 18px 38px rgba(0,0,0,0.28),
+        inset 0 0 0 1px rgba(255,255,255,0.03);
+      padding: 14px 10px 13px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
     }
-    .chartTitle{color:#e5e7eb;font-size:17px;font-weight:900;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .chartLegend{display:flex;align-items:center;flex-wrap:wrap;gap:12px;color:var(--text);font-size:14px;font-weight:800;margin-bottom:9px}
-    .legendItem{display:inline-flex;align-items:center;gap:6px}
-    .legendColor{width:14px;height:14px;border-radius:5px;display:inline-block}
-    canvas{width:100%;height:270px;background:#253044;border:1px solid rgba(255,255,255,.14);border-radius:16px;box-shadow:inset 0 0 26px rgba(0,0,0,.18)}
-    .empty{
-      grid-column:1/-1;background:linear-gradient(180deg,rgba(45,59,87,.95),rgba(21,32,51,.98));
-      border-radius:22px;padding:34px 10px;text-align:center;color:var(--muted);border:1px solid var(--line)
+
+    .card.offline { opacity: .48; filter: grayscale(.35); }
+
+    .dot {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 14px currentColor;
     }
-    @media(max-width:430px){
-      .wrap{padding-left:10px;padding-right:10px}.waterPage{gap:10px;min-height:402px}
-      .gaugeCard{min-height:190px;padding:12px 8px}.semiGauge{width:136px;height:72px}.semiGaugeArc{width:136px;height:136px}
-      .gaugeValue{font-size:40px}.headerTitle{font-size:21px}canvas{height:250px}
+    .dot.offline { background: #64748b; box-shadow: none; }
+
+    .name {
+      text-align: center;
+      min-height: 38px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #dbeafe;
+      font-size: 15px;
+      line-height: 1.25;
+      z-index: 2;
+    }
+
+    .gauge {
+      width: 154px;
+      height: 82px;
+      overflow: hidden;
+      position: relative;
+      margin-top: 4px;
+    }
+
+    .arc {
+      width: 154px;
+      height: 154px;
+      border-radius: 50%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      background:
+        conic-gradient(from 270deg,
+          var(--c) calc(var(--v) * 0.5%),
+          rgba(51,65,85,0.98) 0 50%,
+          transparent 0);
+      filter: drop-shadow(0 0 15px var(--c));
+    }
+
+    .arc:after {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border-radius: 50%;
+      background: #101b2e;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.28);
+    }
+
+    .value {
+      margin-top: -7px;
+      font-size: 45px;
+      line-height: 1;
+      font-weight: 900;
+      direction: ltr;
+      letter-spacing: -1px;
+      z-index: 2;
+    }
+
+    .value span {
+      font-size: 21px;
+      opacity: .9;
+      margin-left: 2px;
+    }
+
+    .mini {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      direction: ltr;
+      font-size: 15px;
+      font-weight: 900;
+      margin-top: 2px;
+      z-index: 2;
+    }
+
+    .t { color: #5eead4; }
+    .h { color: #f0abfc; }
+
+    .state {
+      margin-top: 3px;
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--good);
+      z-index: 2;
+    }
+    .state.bad { color: #f87171; }
+    .seen { margin-top: 2px; color: #cbd5e1; font-size: 12px; z-index: 2; }
+
+    .hint {
+      color: var(--muted);
+      text-align: center;
+      margin: -2px 0 12px;
+      font-size: 12px;
+    }
+
+    .chartCard {
+      margin-top: 8px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at top, rgba(217, 70, 239, 0.12), transparent 36%),
+        linear-gradient(180deg, rgba(40, 54, 82, 0.96), rgba(15, 23, 42, 0.98));
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 38px rgba(0,0,0,0.28);
+      padding: 15px 12px 16px;
+    }
+
+    .chartHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .chartTitle {
+      font-weight: 900;
+      font-size: 17px;
+      color: #e2e8f0;
+    }
+
+    .live {
+      color: #4ade80;
+      font-size: 12px;
+      font-weight: 900;
+      direction: ltr;
+    }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      font-size: 14px;
+      font-weight: 900;
+      color: #e5e7eb;
+    }
+
+    .legendItem { display: inline-flex; align-items: center; gap: 6px; }
+    .legendColor { width: 14px; height: 14px; border-radius: 5px; display: inline-block; }
+
+    canvas {
+      width: 100%;
+      height: 270px;
+      border-radius: 18px;
+      background: #253044;
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: inset 0 0 28px rgba(0,0,0,0.20);
+    }
+
+    .empty {
+      grid-column: 1 / -1;
+      min-height: 190px;
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(40,54,82,.95), rgba(15,23,42,.96));
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-weight: 800;
+      text-align: center;
+      padding: 24px;
+    }
+
+    @media (max-width: 430px) {
+      .wrap { padding-left: 10px; padding-right: 10px; }
+      .waterPage { gap: 10px; min-height: 410px; }
+      .card { min-height: 194px; border-radius: 24px; padding: 12px 8px; }
+      .gauge { width: 138px; height: 74px; }
+      .arc { width: 138px; height: 138px; }
+      .value { font-size: 40px; }
+      canvas { height: 252px; }
     }
   </style>
 </head>
+
 <body>
-  <header class="appHeader">
-    <div class="headerTitle">Vahaba Boat</div>
-    <div class="headerSub">Water Level · Temperature · Humidity</div>
+  <header class="header">
+    <div class="title">Vahaba Boat</div>
+    <div class="subtitle">Water Level · Temperature · Humidity</div>
   </header>
+
   <main class="wrap">
-    <div id="alertBar" class="alertBar">⚠️ יש התראה פעילה</div>
+    <div id="alarm" class="alarm">⚠️ התראה פעילה</div>
+
     <section class="waterScroller">
-      <div class="waterPages" id="waterPages">
+      <div id="waterPages" class="waterPages">
         <div class="empty">ממתין לנתונים מה־Raspberry Pi...</div>
       </div>
     </section>
-    <div class="pageHint">החלקה לצדדים מציגה עוד חיישנים · 4 חיישני מפלס בכל מסך</div>
-    <section class="chartPanel">
-      <div class="chartTitle"><span>גרף טמפרטורה ולחות</span><span style="color:#94a3b8;font-size:12px;font-weight:700;">Live</span></div>
-      <div class="chartLegend">
+
+    <div class="hint">החלקה לצדדים מציגה עוד חיישנים · 4 חיישני מפלס בכל מסך</div>
+
+    <section class="chartCard">
+      <div class="chartHead">
+        <div class="chartTitle">גרף טמפרטורה ולחות</div>
+        <div class="live">LIVE</div>
+      </div>
+
+      <div class="legend">
         <span class="legendItem"><span class="legendColor" style="background:#5eead4"></span>טמפרטורה</span>
         <span class="legendItem"><span class="legendColor" style="background:#d946ef"></span>לחות</span>
       </div>
-      <canvas id="sensorChart" width="900" height="360"></canvas>
+
+      <canvas id="chart" width="900" height="360"></canvas>
     </section>
   </main>
-<script>
-var lastDevices = [];
 
+<script>
 function chunk(arr, size) {
   var out = [];
   for (var i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -242,8 +497,9 @@ function colorByLevel(level, online) {
   return '#ef4444';
 }
 
-function renderWaterDevices(devices) {
+function renderCards(devices) {
   var root = document.getElementById('waterPages');
+
   if (!devices.length) {
     root.innerHTML = '<div class="empty">אין עדיין נתונים. הפעל את סקריפט ה־Raspberry Pi.</div>';
     return;
@@ -258,32 +514,22 @@ function renderWaterDevices(devices) {
     page.forEach(function(d) {
       var level = d.waterLevel == null ? 0 : Number(d.waterLevel);
       var color = colorByLevel(level, d.online);
-      var onlineClass = d.online ? '' : 'offline';
+      var offline = d.online ? '' : 'offline';
       var temp = d.temperatureC == null ? '--' : Number(d.temperatureC).toFixed(0);
       var hum = d.humidity == null ? '--' : Number(d.humidity).toFixed(0);
       var ok = d.online && level <= 20;
-      var statusText = !d.online ? 'OFFLINE' : ok ? 'Water OK' : d.status;
+      var stateText = !d.online ? 'OFFLINE' : ok ? '✅ Water OK' : '❗ ' + escapeHtml(d.status || 'ALARM');
 
-      html += '<article class="gaugeCard ' + onlineClass + '">';
-      html += '<span class="statusDot ' + onlineClass + '"></span>';
-      html += '<div class="gaugeName">' + escapeHtml(d.name || d.deviceId) + '</div>';
-      html += '<div class="semiGauge" style="--gaugeColor:' + color + ';--level:' + level + '"><div class="semiGaugeArc"></div></div>';
-      html += '<div class="gaugeValue" style="color:' + (level > 60 ? '#f87171' : '#ffffff') + '">' + level + '<span class="unit">%</span></div>';
-      html += '<div class="miniData"><span class="temp">' + temp + '°C</span><span class="hum">' + hum + '%</span></div>';
-      html += '<div class="statusText ' + (ok ? '' : 'bad') + '">' + (d.online ? (ok ? '✅ Water OK' : '❗ ' + escapeHtml(statusText)) : 'OFFLINE') + '</div>';
-      html += '<div class="offlineText">' + (d.online ? 'עודכן לפני ' + d.secondsAgo + ' שנ׳' : 'לא מחובר') + '</div>';
+      html += '<article class="card ' + offline + '">';
+      html += '<span class="dot ' + offline + '"></span>';
+      html += '<div class="name">' + escapeHtml(d.name || d.deviceId) + '</div>';
+      html += '<div class="gauge" style="--c:' + color + ';--v:' + level + '"><div class="arc"></div></div>';
+      html += '<div class="value" style="color:' + (level > 60 ? '#f87171' : '#ffffff') + '">' + level + '<span>%</span></div>';
+      html += '<div class="mini"><span class="t">' + temp + '°C</span><span class="h">' + hum + '%</span></div>';
+      html += '<div class="state ' + (ok ? '' : 'bad') + '">' + stateText + '</div>';
+      html += '<div class="seen">' + (d.online ? 'עודכן לפני ' + d.secondsAgo + ' שנ׳' : 'לא מחובר') + '</div>';
       html += '</article>';
     });
-
-    var missing = Math.max(0, 4 - page.length);
-    for (var i = 0; i < missing; i++) {
-      html += '<article class="gaugeCard offline">';
-      html += '<div class="gaugeName">פנוי</div>';
-      html += '<div class="semiGauge" style="--gaugeColor:#64748b;--level:0"><div class="semiGaugeArc"></div></div>';
-      html += '<div class="gaugeValue">--<span class="unit">%</span></div>';
-      html += '<div class="offlineText">אין חיישן</div>';
-      html += '</article>';
-    }
 
     html += '</div>';
   });
@@ -292,18 +538,21 @@ function renderWaterDevices(devices) {
 }
 
 async function drawChart(deviceId) {
-  var canvas = document.getElementById('sensorChart');
+  var canvas = document.getElementById('chart');
   var ctx = canvas.getContext('2d');
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#253044';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  var padL = 65, padR = 20, padT = 24, padB = 48;
+  var padL = 65;
+  var padR = 20;
+  var padT = 24;
+  var padB = 48;
   var w = canvas.width - padL - padR;
   var h = canvas.height - padT - padB;
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.26)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.24)';
   ctx.lineWidth = 1;
   ctx.font = '20px Arial';
 
@@ -334,7 +583,7 @@ async function drawChart(deviceId) {
   try {
     var res = await fetch('/api/history/' + encodeURIComponent(deviceId), { cache: 'no-store' });
     var data = await res.json();
-    var arr = (data.history || []).slice(-60);
+    var arr = (data.history || []).slice(-70);
 
     if (!arr.length) {
       ctx.fillStyle = '#94a3b8';
@@ -379,9 +628,9 @@ async function drawChart(deviceId) {
     ctx.fillStyle = '#94a3b8';
     var first = new Date(arr[0].t);
     var last = new Date(arr[arr.length - 1].t);
+
     ctx.fillText(first.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), padL, canvas.height - 14);
     ctx.fillText(last.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), canvas.width - 110, canvas.height - 14);
-
   } catch (err) {
     ctx.fillStyle = '#ef4444';
     ctx.fillText('שגיאה בטעינת גרף', 340, 180);
@@ -394,24 +643,21 @@ async function loadData() {
     var data = await res.json();
     var devices = data.devices || [];
 
-    lastDevices = devices;
-
     var hasAlarm = devices.some(function(d) {
       return d.online && Number(d.waterLevel || 0) > 20;
     });
 
-    var alertBar = document.getElementById('alertBar');
-    alertBar.classList.toggle('show', hasAlarm);
-    alertBar.textContent = hasAlarm ? '⚠️ התראת מפלס מים פעילה' : '';
+    var alarm = document.getElementById('alarm');
+    alarm.classList.toggle('show', hasAlarm);
+    alarm.textContent = hasAlarm ? '⚠️ התראת מפלס מים פעילה' : '';
 
-    renderWaterDevices(devices);
+    renderCards(devices);
 
-    var firstWithDht = devices.find(function(d) {
+    var graphDevice = devices.find(function(d) {
       return d.temperatureC != null || d.humidity != null;
     }) || devices[0];
 
-    drawChart(firstWithDht ? firstWithDht.deviceId : null);
-
+    drawChart(graphDevice ? graphDevice.deviceId : null);
   } catch (err) {
     document.getElementById('waterPages').innerHTML = '<div class="empty">שגיאה בטעינת נתונים</div>';
   }
@@ -421,10 +667,7 @@ loadData();
 setInterval(loadData, 3000);
 </script>
 </body>
-</html>`;
-
-app.get('/', (req, res) => {
-  res.send(html);
+</html>`);
 });
 
 app.listen(PORT, () => {
