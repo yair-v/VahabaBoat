@@ -4,17 +4,16 @@ import time
 import socket
 
 # DHT11 libraries
-# Install by running: ./install_pi.sh
 import board
 import adafruit_dht
 
 # =============================
-# CHANGE THESE SETTINGS
+# SETTINGS
 # =============================
-SERVER_URL = "https://YOUR-RENDER-APP.onrender.com/api/update"
-API_KEY = "change-me-12345"
+SERVER_URL = "https://vahababoat.onrender.com/api/update"
+API_KEY = "Yair$!(^hila**78)"
 DEVICE_ID = "pi-water-1"
-DEVICE_NAME = "Raspberry Pi Water + DHT11 Sensor 1"
+DEVICE_NAME = "Raspberry Pi Water Sensor 1"
 SEND_EVERY_SECONDS = 5
 
 # Grove Water Level Sensor addresses
@@ -22,12 +21,16 @@ LOW_ADDR = 0x77
 HIGH_ADDR = 0x78
 THRESHOLD = 100
 
-# DHT11 data pin
-# Recommended physical pin: 11 = GPIO17 = board.D17
+# DHT11 pin
 DHT_PIN = board.D17
 
 bus = SMBus(1)
-dht = adafruit_dht.DHT11(DHT_PIN)
+
+# DHT object created dynamically
+# so disconnects will not kill monitoring
+# system
+
+dht = None
 
 
 def read_i2c_sensor(addr, length):
@@ -62,7 +65,12 @@ def get_water_level():
 
 
 def get_dht11():
+    global dht
+
     try:
+        if dht is None:
+            dht = adafruit_dht.DHT11(DHT_PIN)
+
         temperature = dht.temperature
         humidity = dht.humidity
 
@@ -72,11 +80,19 @@ def get_dht11():
         return round(float(temperature), 1), round(float(humidity), 1), None
 
     except RuntimeError as e:
-        # DHT11 sometimes fails one reading. This is normal.
         return None, None, str(e)
 
     except Exception as e:
-        return None, None, str(e)
+        print("DHT11 critical error:", e)
+
+        try:
+            dht.exit()
+        except:
+            pass
+
+        dht = None
+
+        return None, None, "DHT11 disconnected"
 
 
 def internet_ok():
@@ -91,7 +107,7 @@ def send_update(level, low_data, high_data, temperature, humidity, dht_error):
     payload = {
         "deviceId": DEVICE_ID,
         "name": DEVICE_NAME,
-        "waterLevel": level,
+        "waterLevel": level if level is not None else -1,
         "temperatureC": temperature,
         "humidity": humidity,
         "dhtError": dht_error,
@@ -104,8 +120,15 @@ def send_update(level, low_data, high_data, temperature, humidity, dht_error):
         "Content-Type": "application/json",
     }
 
-    response = requests.post(SERVER_URL, json=payload, headers=headers, timeout=10)
+    response = requests.post(
+        SERVER_URL,
+        json=payload,
+        headers=headers,
+        timeout=10,
+    )
+
     response.raise_for_status()
+
     return response.json()
 
 
@@ -119,8 +142,10 @@ print("Device:", DEVICE_ID)
 print("Server:", SERVER_URL)
 print("====================================")
 
+
 while True:
     level, low_data, high_data = get_water_level()
+
     temperature, humidity, dht_error = get_dht11()
 
     if level is None:
@@ -139,8 +164,17 @@ while True:
         continue
 
     try:
-        result = send_update(level, low_data, high_data, temperature, humidity, dht_error)
+        result = send_update(
+            level,
+            low_data,
+            high_data,
+            temperature,
+            humidity,
+            dht_error,
+        )
+
         print("Sent to cloud:", result.get("ok"))
+
     except Exception as e:
         print("Cloud send error:", e)
 

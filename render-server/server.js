@@ -535,16 +535,29 @@ else if (devices.some(function(d) {
 });
 
 if (!graphDevice) {
+
+  // Pi ONLINE but DHT missing
+  const anyOnline = devices.some(function(d) {
+    return d.online;
+  });
+
   document.getElementById('currentTemp').textContent = '--';
   document.getElementById('currentHum').textContent = '--';
 
   document.getElementById('alarm').classList.add('show');
-  document.getElementById('alarm').textContent =
-    '⚠️ מערכת הניטור מנותקת';
+
+  if (anyOnline) {
+    document.getElementById('alarm').textContent =
+      '⚠️ חיישן טמפרטורה / לחות מנותק';
+  } else {
+    document.getElementById('alarm').textContent =
+      '⚠️ מערכת הניטור מנותקת';
+  }
 
   drawChart(null);
   return;
 }
+
 document.getElementById('currentTemp').textContent =
   graphDevice && graphDevice.temperatureC !== null ? graphDevice.temperatureC : '--';
 
