@@ -11,7 +11,26 @@ app.use(express.json({ limit: '1mb' }));
 
 const devices = new Map();
 const history = new Map();
-const MAX_HISTORY = 500;
+const MAX_HISTORY = 600;
+
+function normalizeWater(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
+}
+
+function normalizeTemp(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0 || n > 80) return null;
+  return Math.round(n * 10) / 10;
+}
+
+function normalizeHum(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0 || n > 100) return null;
+  return Math.round(n);
+}
 
 function getStatus(level) {
   if (level === null || level === undefined || Number.isNaN(Number(level))) return 'SENSOR ERROR';
@@ -32,9 +51,7 @@ function getColor(level, online) {
 
 function auth(req, res, next) {
   const key = req.header('x-api-key');
-  if (key !== API_KEY) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized' });
-  }
+  if (key !== API_KEY) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   next();
 }
 
@@ -43,28 +60,15 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/update', auth, (req, res) => {
-  const {
-    deviceId,
-    name,
-    waterLevel,
-    temperatureC,
-    humidity,
-    dhtError,
-    rawLow,
-    rawHigh
-  } = req.body || {};
+  const { deviceId, name, waterLevel, temperatureC, humidity, dhtError, rawLow, rawHigh } = req.body || {};
 
   if (!deviceId) {
     return res.status(400).json({ ok: false, error: 'Missing deviceId' });
   }
 
-  const level = Number(waterLevel);
-  const normalizedLevel = Number.isFinite(level)
-    ? Math.max(0, Math.min(100, Math.round(level)))
-    : null;
-
-  const tempValue = Number.isFinite(Number(temperatureC)) ? Number(temperatureC) : null;
-  const humValue = Number.isFinite(Number(humidity)) ? Number(humidity) : null;
+  const normalizedLevel = normalizeWater(waterLevel);
+  const tempValue = normalizeTemp(temperatureC);
+  const humValue = normalizeHum(humidity);
   const now = Date.now();
 
   const item = {
@@ -133,313 +137,95 @@ app.get('/', (req, res) => {
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root {
-      --bg0: #07111f;
-      --bg1: #101b2e;
-      --card: rgba(22, 34, 55, 0.92);
-      --card2: rgba(15, 23, 42, 0.98);
-      --line: rgba(148, 163, 184, 0.20);
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --good: #22c55e;
-      --warn: #f59e0b;
-      --bad: #ef4444;
-      --cyan: #22d3ee;
-      --purple: #d946ef;
+      --bg0:#06101f; --bg1:#111c31; --card:#162237; --card2:#0f172a;
+      --line:rgba(148,163,184,.22); --text:#f8fafc; --muted:#94a3b8;
+      --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --cyan:#5eead4; --purple:#d946ef;
     }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
+    html,body{
+      margin:0; padding:0; min-height:100vh; overflow-x:hidden; color:var(--text);
+      font-family:Arial, Helvetica, sans-serif;
       background:
-        radial-gradient(circle at 50% -10%, rgba(34, 211, 238, 0.20), transparent 32%),
-        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.16), transparent 34%),
-        linear-gradient(180deg, var(--bg1), var(--bg0));
-      color: var(--text);
-      font-family: Arial, Helvetica, sans-serif;
-      overflow-x: hidden;
+        radial-gradient(circle at 50% -10%, rgba(34,211,238,.22), transparent 30%),
+        linear-gradient(180deg,var(--bg1),var(--bg0));
     }
-
-    body { padding-bottom: 20px; }
-
-    .header {
-      padding: max(14px, env(safe-area-inset-top)) 16px 12px;
-      background: rgba(7, 17, 31, 0.78);
-      backdrop-filter: blur(18px);
-      border-bottom: 1px solid var(--line);
-      position: sticky;
-      top: 0;
-      z-index: 20;
+    body{padding-bottom:20px}
+    .header{
+      position:sticky; top:0; z-index:20;
+      padding:max(14px,env(safe-area-inset-top)) 16px 13px;
+      background:rgba(7,17,31,.84); backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--line);
+      box-shadow:0 8px 28px rgba(0,0,0,.25);
     }
-
-    .title {
-      text-align: center;
-      font-size: 24px;
-      font-weight: 900;
-      letter-spacing: 0.4px;
-      line-height: 1.1;
+    .title{text-align:center;font-size:25px;font-weight:900;letter-spacing:.4px;line-height:1.1}
+    .subtitle{text-align:center;margin-top:6px;color:var(--muted);font-size:13px;direction:ltr}
+    .wrap{width:100%;max-width:1160px;margin:0 auto;padding:14px 12px 22px}
+    .alarm{
+      display:none;margin:2px 0 12px;padding:12px 14px;border-radius:18px;
+      background:linear-gradient(135deg,#7f1d1d,#ef4444);color:#fff;font-weight:900;
+      box-shadow:0 16px 34px rgba(239,68,68,.22);border:1px solid rgba(255,255,255,.16)
     }
-
-    .subtitle {
-      text-align: center;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 13px;
-      direction: ltr;
+    .alarm.show{display:block}
+    .waterScroller{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 0 10px}
+    .waterScroller::-webkit-scrollbar{height:6px}.waterScroller::-webkit-scrollbar-thumb{background:rgba(148,163,184,.35);border-radius:999px}
+    .waterPages{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px}
+    .waterPage{scroll-snap-align:start;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:420px}
+    .card{
+      min-height:202px;border-radius:28px;padding:14px 10px 13px;position:relative;overflow:hidden;
+      background:radial-gradient(circle at 50% 6%,rgba(34,211,238,.12),transparent 42%),linear-gradient(180deg,rgba(40,54,82,.96),rgba(13,23,39,.98));
+      border:1px solid var(--line);
+      box-shadow:0 18px 38px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.03);
+      display:flex;flex-direction:column;align-items:center;justify-content:space-between;
     }
-
-    .wrap {
-      width: 100%;
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 14px 12px 22px;
+    .card.offline{opacity:.48;filter:grayscale(.35)}
+    .dot{position:absolute;top:14px;right:14px;width:12px;height:12px;border-radius:50%;background:var(--good);box-shadow:0 0 14px currentColor}
+    .dot.offline{background:#64748b;box-shadow:none}
+    .rename{
+      position:absolute;top:9px;left:9px;border:0;border-radius:12px;padding:6px 8px;
+      background:rgba(15,23,42,.58);color:#cbd5e1;font-size:12px;font-weight:800
     }
-
-    .alarm {
-      display: none;
-      margin: 2px 0 12px;
-      padding: 12px 14px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, rgba(127, 29, 29, 0.98), rgba(239, 68, 68, 0.92));
-      color: white;
-      font-weight: 900;
-      box-shadow: 0 16px 34px rgba(239, 68, 68, 0.22);
-      border: 1px solid rgba(255,255,255,0.16);
+    .name{
+      text-align:center;min-height:38px;padding:0 28px;display:flex;align-items:center;justify-content:center;
+      font-weight:900;color:#dbeafe;font-size:15px;line-height:1.25;z-index:2;
+      text-shadow:0 2px 8px rgba(0,0,0,.35)
     }
-    .alarm.show { display: block; }
-
-    .waterScroller {
-      overflow-x: auto;
-      overflow-y: hidden;
-      scroll-snap-type: x mandatory;
-      -webkit-overflow-scrolling: touch;
-      padding: 2px 0 10px;
+    .gauge{width:156px;height:84px;overflow:hidden;position:relative;margin-top:4px}
+    .arc{
+      width:156px;height:156px;border-radius:50%;position:absolute;left:0;top:0;
+      background:conic-gradient(from 270deg,var(--c) calc(var(--v) * .5%),rgba(51,65,85,.98) 0 50%,transparent 0);
+      filter:drop-shadow(0 0 16px var(--c));
     }
-
-    .waterScroller::-webkit-scrollbar { height: 6px; }
-    .waterScroller::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.35); border-radius: 999px; }
-
-    .waterPages {
-      display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: 100%;
-      gap: 16px;
+    .arc:after{
+      content:"";position:absolute;inset:17px;border-radius:50%;background:#101b2e;
+      border:1px solid rgba(255,255,255,.06);box-shadow:inset 0 0 20px rgba(0,0,0,.28)
     }
-
-    .waterPage {
-      scroll-snap-align: start;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      min-height: 430px;
+    .needle{
+      position:absolute;left:50%;bottom:0;width:3px;height:63px;border-radius:999px;background:#e2e8f0;
+      transform-origin:50% 100%;transform:rotate(calc(-90deg + var(--v) * 1.8deg));opacity:.86;
+      box-shadow:0 0 10px rgba(255,255,255,.45)
     }
-
-    .card {
-      min-height: 205px;
-      border-radius: 28px;
-      background:
-        radial-gradient(circle at 50% 8%, rgba(34, 211, 238, 0.10), transparent 42%),
-        linear-gradient(180deg, rgba(40, 54, 82, 0.96), rgba(13, 23, 39, 0.98));
-      border: 1px solid var(--line);
-      box-shadow:
-        0 18px 38px rgba(0,0,0,0.28),
-        inset 0 0 0 1px rgba(255,255,255,0.03);
-      padding: 14px 10px 13px;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
+    .needle:after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#e2e8f0}
+    .value{margin-top:-7px;font-size:45px;line-height:1;font-weight:900;direction:ltr;letter-spacing:-1px;z-index:2}
+    .value span{font-size:21px;opacity:.9;margin-left:2px}
+    .state{margin-top:3px;font-size:15px;font-weight:900;color:var(--good);z-index:2}
+    .state.bad{color:#f87171}.seen{margin-top:2px;color:#cbd5e1;font-size:12px;z-index:2}
+    .hint{color:var(--muted);text-align:center;margin:-2px 0 12px;font-size:12px}
+    .chartCard{
+      margin-top:8px;border-radius:28px;padding:15px 12px 16px;
+      background:radial-gradient(circle at top,rgba(217,70,239,.12),transparent 36%),linear-gradient(180deg,rgba(40,54,82,.96),rgba(15,23,42,.98));
+      border:1px solid var(--line);box-shadow:0 18px 38px rgba(0,0,0,.28)
     }
-
-    .card.offline { opacity: .48; filter: grayscale(.35); }
-
-    .dot {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: var(--good);
-      box-shadow: 0 0 14px currentColor;
+    .chartHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+    .chartTitle{font-weight:900;font-size:17px;color:#e2e8f0}.live{color:#4ade80;font-size:12px;font-weight:900;direction:ltr}
+    .legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:14px;font-weight:900;color:#e5e7eb}
+    .legendItem{display:inline-flex;align-items:center;gap:6px}.legendColor{width:14px;height:14px;border-radius:5px;display:inline-block}
+    canvas{width:100%;height:300px;border-radius:18px;background:#253044;border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 0 28px rgba(0,0,0,.20)}
+    .empty{
+      grid-column:1/-1;min-height:190px;border-radius:28px;background:linear-gradient(180deg,rgba(40,54,82,.95),rgba(15,23,42,.96));
+      border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:800;text-align:center;padding:24px
     }
-    .dot.offline { background: #64748b; box-shadow: none; }
-
-    .name {
-      text-align: center;
-      min-height: 38px;
-      padding: 0 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      color: #dbeafe;
-      font-size: 15px;
-      line-height: 1.25;
-      z-index: 2;
-    }
-
-    .gauge {
-      width: 154px;
-      height: 82px;
-      overflow: hidden;
-      position: relative;
-      margin-top: 4px;
-    }
-
-    .arc {
-      width: 154px;
-      height: 154px;
-      border-radius: 50%;
-      position: absolute;
-      left: 0;
-      top: 0;
-      background:
-        conic-gradient(from 270deg,
-          var(--c) calc(var(--v) * 0.5%),
-          rgba(51,65,85,0.98) 0 50%,
-          transparent 0);
-      filter: drop-shadow(0 0 15px var(--c));
-    }
-
-    .arc:after {
-      content: "";
-      position: absolute;
-      inset: 16px;
-      border-radius: 50%;
-      background: #101b2e;
-      border: 1px solid rgba(255,255,255,0.06);
-      box-shadow: inset 0 0 20px rgba(0,0,0,0.28);
-    }
-
-    .value {
-      margin-top: -7px;
-      font-size: 45px;
-      line-height: 1;
-      font-weight: 900;
-      direction: ltr;
-      letter-spacing: -1px;
-      z-index: 2;
-    }
-
-    .value span {
-      font-size: 21px;
-      opacity: .9;
-      margin-left: 2px;
-    }
-
-    .mini {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      direction: ltr;
-      font-size: 15px;
-      font-weight: 900;
-      margin-top: 2px;
-      z-index: 2;
-    }
-
-    .t { color: #5eead4; }
-    .h { color: #f0abfc; }
-
-    .state {
-      margin-top: 3px;
-      font-size: 14px;
-      font-weight: 900;
-      color: var(--good);
-      z-index: 2;
-    }
-    .state.bad { color: #f87171; }
-    .seen { margin-top: 2px; color: #cbd5e1; font-size: 12px; z-index: 2; }
-
-    .hint {
-      color: var(--muted);
-      text-align: center;
-      margin: -2px 0 12px;
-      font-size: 12px;
-    }
-
-    .chartCard {
-      margin-top: 8px;
-      border-radius: 28px;
-      background:
-        radial-gradient(circle at top, rgba(217, 70, 239, 0.12), transparent 36%),
-        linear-gradient(180deg, rgba(40, 54, 82, 0.96), rgba(15, 23, 42, 0.98));
-      border: 1px solid var(--line);
-      box-shadow: 0 18px 38px rgba(0,0,0,0.28);
-      padding: 15px 12px 16px;
-    }
-
-    .chartHead {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-
-    .chartTitle {
-      font-weight: 900;
-      font-size: 17px;
-      color: #e2e8f0;
-    }
-
-    .live {
-      color: #4ade80;
-      font-size: 12px;
-      font-weight: 900;
-      direction: ltr;
-    }
-
-    .legend {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-      font-size: 14px;
-      font-weight: 900;
-      color: #e5e7eb;
-    }
-
-    .legendItem { display: inline-flex; align-items: center; gap: 6px; }
-    .legendColor { width: 14px; height: 14px; border-radius: 5px; display: inline-block; }
-
-    canvas {
-      width: 100%;
-      height: 270px;
-      border-radius: 18px;
-      background: #253044;
-      border: 1px solid rgba(255,255,255,0.14);
-      box-shadow: inset 0 0 28px rgba(0,0,0,0.20);
-    }
-
-    .empty {
-      grid-column: 1 / -1;
-      min-height: 190px;
-      border-radius: 28px;
-      background: linear-gradient(180deg, rgba(40,54,82,.95), rgba(15,23,42,.96));
-      border: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      font-weight: 800;
-      text-align: center;
-      padding: 24px;
-    }
-
-    @media (max-width: 430px) {
-      .wrap { padding-left: 10px; padding-right: 10px; }
-      .waterPage { gap: 10px; min-height: 410px; }
-      .card { min-height: 194px; border-radius: 24px; padding: 12px 8px; }
-      .gauge { width: 138px; height: 74px; }
-      .arc { width: 138px; height: 138px; }
-      .value { font-size: 40px; }
-      canvas { height: 252px; }
+    @media (max-width:430px){
+      .wrap{padding-left:10px;padding-right:10px}.waterPage{gap:10px;min-height:410px}.card{min-height:194px;border-radius:24px;padding:12px 8px}
+      .gauge{width:140px;height:76px}.arc{width:140px;height:140px}.value{font-size:40px}canvas{height:280px}.name{font-size:14px}
     }
   </style>
 </head>
@@ -459,7 +245,7 @@ app.get('/', (req, res) => {
       </div>
     </section>
 
-    <div class="hint">החלקה לצדדים מציגה עוד חיישנים · 4 חיישני מפלס בכל מסך</div>
+    <div class="hint">החלקה לצדדים מציגה עוד חיישנים · 4 חיישני הצפה בכל מסך</div>
 
     <section class="chartCard">
       <div class="chartHead">
@@ -468,11 +254,11 @@ app.get('/', (req, res) => {
       </div>
 
       <div class="legend">
-        <span class="legendItem"><span class="legendColor" style="background:#5eead4"></span>טמפרטורה</span>
-        <span class="legendItem"><span class="legendColor" style="background:#d946ef"></span>לחות</span>
+        <span class="legendItem"><span class="legendColor" style="background:#5eead4"></span>טמפרטורה °C · סרגל 0-60</span>
+        <span class="legendItem"><span class="legendColor" style="background:#d946ef"></span>לחות % · סרגל 0-100</span>
       </div>
 
-      <canvas id="chart" width="900" height="360"></canvas>
+      <canvas id="chart" width="900" height="400"></canvas>
     </section>
   </main>
 
@@ -497,6 +283,25 @@ function colorByLevel(level, online) {
   return '#ef4444';
 }
 
+function defaultWaterName(index) {
+  return 'חיישן הצפה מספר ' + (index + 1);
+}
+
+function nameKey(deviceId) {
+  return 'waterName_' + deviceId;
+}
+
+function getDisplayName(device, index) {
+  return localStorage.getItem(nameKey(device.deviceId)) || defaultWaterName(index);
+}
+
+function renameDevice(deviceId, currentName) {
+  var next = prompt('שם חדש לחיישן:', currentName || '');
+  if (!next) return;
+  localStorage.setItem(nameKey(deviceId), next.trim());
+  loadData();
+}
+
 function renderCards(devices) {
   var root = document.getElementById('waterPages');
 
@@ -508,24 +313,24 @@ function renderCards(devices) {
   var pages = chunk(devices, 4);
   var html = '';
 
-  pages.forEach(function(page) {
+  pages.forEach(function(page, pageIndex) {
     html += '<div class="waterPage">';
 
-    page.forEach(function(d) {
+    page.forEach(function(d, localIndex) {
+      var index = pageIndex * 4 + localIndex;
+      var displayName = getDisplayName(d, index);
       var level = d.waterLevel == null ? 0 : Number(d.waterLevel);
       var color = colorByLevel(level, d.online);
       var offline = d.online ? '' : 'offline';
-      var temp = d.temperatureC == null ? '--' : Number(d.temperatureC).toFixed(0);
-      var hum = d.humidity == null ? '--' : Number(d.humidity).toFixed(0);
       var ok = d.online && level <= 20;
-      var stateText = !d.online ? 'OFFLINE' : ok ? '✅ Water OK' : '❗ ' + escapeHtml(d.status || 'ALARM');
+      var stateText = !d.online ? 'OFFLINE' : ok ? '✅ תקין' : '❗ ' + escapeHtml(d.status || 'ALARM');
 
       html += '<article class="card ' + offline + '">';
+      html += '<button class="rename" onclick="renameDevice(\\'' + escapeHtml(d.deviceId) + '\\',\\'' + escapeHtml(displayName) + '\\')">✎</button>';
       html += '<span class="dot ' + offline + '"></span>';
-      html += '<div class="name">' + escapeHtml(d.name || d.deviceId) + '</div>';
-      html += '<div class="gauge" style="--c:' + color + ';--v:' + level + '"><div class="arc"></div></div>';
+      html += '<div class="name">' + escapeHtml(displayName) + '</div>';
+      html += '<div class="gauge" style="--c:' + color + ';--v:' + level + '"><div class="arc"></div><div class="needle"></div></div>';
       html += '<div class="value" style="color:' + (level > 60 ? '#f87171' : '#ffffff') + '">' + level + '<span>%</span></div>';
-      html += '<div class="mini"><span class="t">' + temp + '°C</span><span class="h">' + hum + '%</span></div>';
       html += '<div class="state ' + (ok ? '' : 'bad') + '">' + stateText + '</div>';
       html += '<div class="seen">' + (d.online ? 'עודכן לפני ' + d.secondsAgo + ' שנ׳' : 'לא מחובר') + '</div>';
       html += '</article>';
@@ -545,95 +350,129 @@ async function drawChart(deviceId) {
   ctx.fillStyle = '#253044';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  var padL = 65;
-  var padR = 20;
-  var padT = 24;
-  var padB = 48;
-  var w = canvas.width - padL - padR;
-  var h = canvas.height - padT - padB;
+  var left = 62;
+  var right = 62;
+  var top = 28;
+  var bottom = 54;
+  var w = canvas.width - left - right;
+  var h = canvas.height - top - bottom;
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+  ctx.font = '18px Arial';
   ctx.lineWidth = 1;
-  ctx.font = '20px Arial';
 
-  for (var i = 0; i <= 4; i++) {
-    var y = padT + (h / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(padL, y);
-    ctx.lineTo(padL + w, y);
-    ctx.stroke();
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillText(String(Math.round(100 - i * 25)), 18, y + 6);
+  function yTemp(v) {
+    var n = Math.max(0, Math.min(60, Number(v)));
+    return top + h - (n / 60) * h;
   }
 
-  for (var j = 0; j <= 5; j++) {
-    var x = padL + (w / 5) * j;
+  function yHum(v) {
+    var n = Math.max(0, Math.min(100, Number(v)));
+    return top + h - (n / 100) * h;
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+
+  for (var i = 0; i <= 6; i++) {
+    var tempVal = i * 10;
+    var y = yTemp(tempVal);
+
     ctx.beginPath();
-    ctx.moveTo(x, padT);
-    ctx.lineTo(x, padT + h);
+    ctx.moveTo(left, y);
+    ctx.lineTo(left + w, y);
+    ctx.stroke();
+
+    ctx.fillStyle = '#5eead4';
+    ctx.fillText(String(tempVal), 18, y + 6);
+  }
+
+  for (var j = 0; j <= 4; j++) {
+    var humVal = j * 25;
+    var yy = yHum(humVal);
+
+    ctx.fillStyle = '#d946ef';
+    ctx.fillText(String(humVal), canvas.width - 46, yy + 6);
+  }
+
+  for (var xg = 0; xg <= 5; xg++) {
+    var x = left + (w / 5) * xg;
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, top + h);
     ctx.stroke();
   }
+
+  ctx.fillStyle = '#5eead4';
+  ctx.fillText('°C', 18, 20);
+  ctx.fillStyle = '#d946ef';
+  ctx.fillText('%', canvas.width - 36, 20);
 
   if (!deviceId) {
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText('אין נתוני גרף עדיין', 330, 180);
+    ctx.fillText('אין נתוני גרף עדיין', 330, 190);
     return;
   }
 
   try {
     var res = await fetch('/api/history/' + encodeURIComponent(deviceId), { cache: 'no-store' });
     var data = await res.json();
-    var arr = (data.history || []).slice(-70);
+
+    var arr = (data.history || []).filter(function(p) {
+      return p.temperatureC !== null || p.humidity !== null;
+    }).slice(-80);
 
     if (!arr.length) {
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText('אין היסטוריה עדיין', 345, 180);
+      ctx.fillText('אין היסטוריה עדיין', 350, 190);
       return;
     }
 
-    function yByValue(v) {
-      var n = Math.max(0, Math.min(100, Number(v || 0)));
-      return padT + h - (n / 100) * h;
-    }
+    function smoothLine(points, color) {
+      if (points.length < 2) return;
 
-    function drawLine(key, color, scaleTemp) {
       ctx.strokeStyle = color;
       ctx.lineWidth = 4;
       ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
 
-      var started = false;
+      for (var i = 1; i < points.length - 1; i++) {
+        var xc = (points[i].x + points[i + 1].x) / 2;
+        var yc = (points[i].y + points[i + 1].y) / 2;
+        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      }
 
-      arr.forEach(function(p, idx) {
-        var value = p[key];
-        if (value === null || value === undefined) return;
-        if (scaleTemp) value = Number(value) * 2;
-
-        var x = padL + (arr.length === 1 ? 0 : (w / (arr.length - 1)) * idx);
-        var y = yByValue(value);
-
-        if (!started) {
-          ctx.moveTo(x, y);
-          started = true;
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-
+      var last = points[points.length - 1];
+      ctx.lineTo(last.x, last.y);
       ctx.stroke();
     }
 
-    drawLine('temperatureC', '#5eead4', true);
-    drawLine('humidity', '#d946ef', false);
+    var tempPoints = [];
+    var humPoints = [];
+
+    arr.forEach(function(p, idx) {
+      var x = left + (arr.length === 1 ? 0 : (w / (arr.length - 1)) * idx);
+
+      if (p.temperatureC !== null && p.temperatureC !== undefined) {
+        tempPoints.push({ x: x, y: yTemp(p.temperatureC) });
+      }
+
+      if (p.humidity !== null && p.humidity !== undefined) {
+        humPoints.push({ x: x, y: yHum(p.humidity) });
+      }
+    });
+
+    smoothLine(tempPoints, '#5eead4');
+    smoothLine(humPoints, '#d946ef');
 
     ctx.fillStyle = '#94a3b8';
     var first = new Date(arr[0].t);
     var last = new Date(arr[arr.length - 1].t);
 
-    ctx.fillText(first.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), padL, canvas.height - 14);
-    ctx.fillText(last.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), canvas.width - 110, canvas.height - 14);
+    ctx.fillText(first.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), left, canvas.height - 16);
+    ctx.fillText(last.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), canvas.width - 120, canvas.height - 16);
+
   } catch (err) {
     ctx.fillStyle = '#ef4444';
-    ctx.fillText('שגיאה בטעינת גרף', 340, 180);
+    ctx.fillText('שגיאה בטעינת גרף', 340, 190);
   }
 }
 
@@ -643,18 +482,18 @@ async function loadData() {
     var data = await res.json();
     var devices = data.devices || [];
 
-    var hasAlarm = devices.some(function(d) {
+    var hasWaterAlarm = devices.some(function(d) {
       return d.online && Number(d.waterLevel || 0) > 20;
     });
 
     var alarm = document.getElementById('alarm');
-    alarm.classList.toggle('show', hasAlarm);
-    alarm.textContent = hasAlarm ? '⚠️ התראת מפלס מים פעילה' : '';
+    alarm.classList.toggle('show', hasWaterAlarm);
+    alarm.textContent = hasWaterAlarm ? '⚠️ התראת מפלס מים פעילה' : '';
 
     renderCards(devices);
 
     var graphDevice = devices.find(function(d) {
-      return d.temperatureC != null || d.humidity != null;
+      return d.temperatureC !== null || d.humidity !== null;
     }) || devices[0];
 
     drawChart(graphDevice ? graphDevice.deviceId : null);
