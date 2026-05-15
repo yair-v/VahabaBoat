@@ -245,7 +245,7 @@ app.get('/', (req, res) => {
       </div>
     </section>
 
-    <div class="hint">החלקה לצדדים מציגה עוד חיישנים · 4 חיישני הצפה בכל מסך</div>
+    <div class="hint">יאיר והבה</div>
 
     <section class="chartCard">
       <div class="chartHead">
